@@ -1,0 +1,10 @@
+filterbase.h
+filtermedian.cpp
+filtermedian.h
+pngimage.h
+pngimage.cpp
+clmanager.h
+clmanager.cpp
+main.cpp
+gl.h
+gl.cpp
