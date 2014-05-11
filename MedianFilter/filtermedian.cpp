@@ -101,12 +101,11 @@ PngImage FilterMedian::openCLLocalImplementation(PngImage& sourceImage)
         for (int x=0; x<sourceImage.getWidth(); x++)
             srcPx[sourceImage.getWidth()*y+x] = static_cast<cl_ulong>(sourceImage.pixel(x,y));
 
-    cl::Buffer clDstBuffer = cl::Buffer( clContext, CL_MEM_WRITE_ONLY, pixelsCount*sizeof(cl_ulong) );
-
     std::vector<cl::Kernel> clKernels(nStreams);
     std::vector<cl::Event> clEvents(nStreams);
     std::vector<cl::CommandQueue> clQueues(nStreams);
     std::vector<cl::Buffer> clSrcBuffers(nStreams);
+    std::vector<cl::Buffer> clDstBuffers(nStreams);
     std::vector<cl_ulong> offsets(nStreams);
     std::vector<cl_ulong*> buffers(nStreams);
 
@@ -127,7 +126,10 @@ PngImage FilterMedian::openCLLocalImplementation(PngImage& sourceImage)
 
     for (int i=0; i<nStreams; i++) {
         clSrcBuffers[i] = cl::Buffer(clContext, CL_MEM_READ_ONLY, queueImageBufferSize);
+        clDstBuffers[i] = cl::Buffer(clContext, CL_MEM_WRITE_ONLY, queueImageBufferSize);
+
         offsets[i] = linesPerStream * i;
+
         clKernels[i] = cl::Kernel(program, "medianFilter");
         clQueues[i] = cl::CommandQueue(clContext, *clDevice);
 
@@ -149,13 +151,16 @@ PngImage FilterMedian::openCLLocalImplementation(PngImage& sourceImage)
 
         buffers[i] = buf;
     }
+
+    //enqueue input data transfer to gpu global data
     for (int i=0; i<nStreams; i++)
         clQueues[i].enqueueWriteBuffer(clSrcBuffers[i], CL_FALSE, 0,
                                        queueImageBufferSize, buffers[i]);
 
+    //enqueue kernel for compputing
     for (int i=0; i<nStreams; i++)  {
         clKernels[i].setArg(0, clSrcBuffers[i]);
-        clKernels[i].setArg(1, clDstBuffer);
+        clKernels[i].setArg(1, clDstBuffers[i]);
         //clKernels[i].setArg(2, sizeof(offsets[i]), (void*) (&offsets[i]))
         cl_int err = clQueues[i].enqueueNDRangeKernel(clKernels[i], cl::NullRange, globalRange, localRange, NULL, &clEvents[i]);
 
@@ -164,17 +169,22 @@ PngImage FilterMedian::openCLLocalImplementation(PngImage& sourceImage)
 
     }
 
-    cl::WaitForEvents(clEvents);
     //copying processed pixels from CLDevice global  memory
     //TODO: carryfully calculate buffer size
-    clQueues[0].enqueueReadBuffer(clDstBuffer, CL_TRUE, 0, sourceImage.getHeight()*sourceImage.getWidth()*sizeof(cl_ulong), srcPx);
+    for(int i=0; i<nStreams; i++)
+        clQueues[i].enqueueReadBuffer(clDstBuffers[i], CL_TRUE, 0, queueImageBufferSize, buffers[i]);
 
     //compose result image
-    for (int y=0; y<rImage.getHeight(); y++)
-        for (int x = 0; x<rImage.getWidth(); x++) {
-            pixel_t pixel = static_cast<pixel_t>(srcPx[y*rImage.getWidth()+x]);
-            rImage.setPixel(x, y, pixel);
+    for (int i=0; i<nStreams; i++)
+    {
+        for (int y=1; y<linesPerStream-1; y++)
+        {
+            for (int x=1; x<rImage.getWidth()+1; i++)
+            {
+                //rImage.setPixel(x-1, y-1, buffers[i][x+y*(rImage.getWidth()+2)]);
+            }
         }
+    }
 
     end = std::chrono::system_clock::now();
     latency = (end - start).count();

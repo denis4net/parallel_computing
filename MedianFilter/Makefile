@@ -12,6 +12,9 @@ $(PREFIX)/%.o: %.cpp
 $(PREFIX)/medianfilter: $(OBJS)
 	$(CXX) $(CXXFLAGS) $(LFLAGS) $(OBJS) -o $@ 
 
+run: $(PREFIX)/medianfilter
+	sudo $< filtermedian_local.cl image.png 5 gpu
+
 clean:
 	rm -rf $(PREFIX)/*.o
 

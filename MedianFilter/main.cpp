@@ -28,13 +28,12 @@ int main(int argc, char** argv)
     CLManager::getInstance()->setType(type);
 
     PngImage img(imagePath);
-    img.write("/tmp/readed_image.png");
-
+    
     PngImage rImage;
 
     try {
         rImage = f.apply(img);
-        rImage.write("/tmp/processed_image.png");
+        rImage.write("/tmp/result.png");
     } catch(std::string e)
     {
         std::cerr << e << std::endl;
